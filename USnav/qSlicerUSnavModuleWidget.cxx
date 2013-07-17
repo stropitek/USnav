@@ -93,6 +93,8 @@ void qSlicerUSnavModuleWidget::setup()
   
   connect(d->MRImageNodeComboBox, SIGNAL(currentNodeChanged(vtkMRMLNode*)), this, SLOT(onMrimageSelected(vtkMRMLNode*)));
   
+  d->logic()->setConsole(d->consoleTextEdit);
+  
   qvtkConnect(d->logic(), vtkCommand::ModifiedEvent, this, SLOT(updateState()));
 }
 

@@ -39,6 +39,9 @@
 #include <vtkImageData.h>
 #include <vtkMatrix4x4.h>
 
+// Qt includes
+#include <QTextEdit>
+
 #include "vtkSlicerUSnavModuleLogicExport.h"
 
 #include "util_macros.h"
@@ -87,6 +90,8 @@ private:
   int currentFrame;
   int numberOfFrames;
   
+  QTextEdit* console;
+  
   
   // Private function
   void checkFrame();
@@ -102,6 +107,7 @@ public:
   GET(int, numberOfFrames, NumberOfFrames);
   GET(set<string>, availableTransforms, AvailableTransforms);
   GETSET(vtkMRMLScalarVolumeNode*, mrimageNode, MrimageNode);
+  GETSET(QTextEdit*, console, Console);
   void setMhaPath(string path);
   string getCurrentTransformStatus();
   void updateImage();

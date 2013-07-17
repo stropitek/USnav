@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>525</width>
-    <height>358</height>
+    <height>446</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -188,6 +188,9 @@
       </widget>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QTextEdit" name="consoleTextEdit"/>
    </item>
    <item>
     <spacer name="verticalSpacer">
