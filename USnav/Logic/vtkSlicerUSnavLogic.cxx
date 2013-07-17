@@ -136,6 +136,17 @@ double matriceDistance(vtkMatrix4x4* m1, vtkMatrix4x4* m2)
   return dist;
 }
 
+double orientationDistance(vtkMatrix4x4* m1, vtkMatrix4x4* m2)
+{
+  vnl_matrix<double> vm1 = vtkToVnlMatrix(m1);
+  vnl_matrix<double> vm2 = vtkToVnlMatrix(m2);
+  vnl_matrix<double> sub1 = vm1.extract(3,3);
+  vnl_matrix<double> sub2 = vm1.extract(3,3);
+  vnl_matrix<double> diff = sub1 - sub2;
+  double dist = vnl_trace(diff.inplace_transpose() * diff);
+  return dist;
+}
+
 
 // =======================================================
 // Reading functions
