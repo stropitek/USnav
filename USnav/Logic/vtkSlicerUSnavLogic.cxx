@@ -30,6 +30,7 @@ limitations under the License.
 
 // vnl include
 #include <vnl/vnl_double_3.h>
+#include <vnl/vnl_trace.h>
 
 
 // ==============================================
@@ -111,6 +112,28 @@ void getVtkMatrixFromVector(const std::vector<float>& vec, vtkMatrix4x4* vtkMatr
   for(int i=0; i<3; i++)
     for(int j=0; j<4; j++)
     vtkMatrix->SetElement(i,j,vec[i*4+j]);
+}
+
+vnl_matrix<double> vtkToVnlMatrix(vtkMatrix4x4* vtkMatrix)
+{
+  vnl_matrix<double> vnlMatrix(4,4);
+  for(int i=0; i<4; i++) {
+    for(int j=0; j<4; j++)
+    vnlMatrix(i,j)=vtkMatrix->GetElement(i,j);
+  }
+  return vnlMatrix;
+}
+
+// ======================================================= 
+// Similarity measure between two matrices
+// =======================================================
+double matriceDistance(vtkMatrix4x4* m1, vtkMatrix4x4* m2)
+{
+  vnl_matrix<double> vm1 = vtkToVnlMatrix(m1);
+  vnl_matrix<double> vm2 = vtkToVnlMatrix(m2);
+  vnl_matrix<double> diff = vm1 - vm2;
+  double dist = vnl_trace(diff.inplace_transpose() * diff);
+  return dist;
 }
 
 
