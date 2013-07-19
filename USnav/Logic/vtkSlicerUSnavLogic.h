@@ -38,6 +38,7 @@
 // VTK includes
 #include <vtkImageData.h>
 #include <vtkMatrix4x4.h>
+#include <vtkMRMLLinearTransformNode.h>
 
 // Qt includes
 #include <QTextEdit>
@@ -68,10 +69,14 @@ protected:
   virtual void UpdateFromMRMLScene();
   virtual void OnMRMLSceneNodeAdded(vtkMRMLNode* node);
   virtual void OnMRMLSceneNodeRemoved(vtkMRMLNode* node);
+  virtual void ProcessMRMLNodesEvents( vtkObject* caller, unsigned long event, void * callData );
 private:
 
   vtkSlicerUSnavLogic(const vtkSlicerUSnavLogic&); // Not implemented
-  void operator=(const vtkSlicerUSnavLogic&);               // Not implemented
+  void operator=(const vtkSlicerUSnavLogic&);      // Not implemented
+  
+  // Matching algo
+  void findMatchingUS(vtkMatrix4x4*);
   
   // Attributes
   string mhaPath;
@@ -84,6 +89,7 @@ private:
   vtkSmartPointer<vtkImageData> imgData;
   vtkMRMLScalarVolumeNode* imageNode;
   vtkMRMLScalarVolumeNode* mrimageNode;
+  vtkMRMLLinearTransformNode* stylusTransform;
   unsigned char* dataPointer;
   int imageWidth;
   int imageHeight;
@@ -100,6 +106,8 @@ public:
   void readImage_mha();
   
   // Getters and Setters
+  void setStylusTransform(vtkMRMLLinearTransformNode*);
+  void removeStylusTransform();
   GET(string, mhaPath, MhaPath);
   GET(int, imageWidth, ImageWidth);
   GET(int, imageHeight, ImageHeight);

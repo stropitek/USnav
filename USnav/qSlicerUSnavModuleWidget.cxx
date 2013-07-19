@@ -92,6 +92,7 @@ void qSlicerUSnavModuleWidget::setup()
   connect(d->frameSlider, SIGNAL(valueChanged(int)), this, SLOT(onFrameSliderChanged(int)));
   
   connect(d->MRImageNodeComboBox, SIGNAL(currentNodeChanged(vtkMRMLNode*)), this, SLOT(onMrimageSelected(vtkMRMLNode*)));
+  connect(d->stylusTransformNodeComboBox, SIGNAL(currentNodeChanged(vtkMRMLNode*)), this, SLOT(onStylusTransformChanged(vtkMRMLNode*)));
   
   d->logic()->setConsole(d->consoleTextEdit);
   
@@ -110,6 +111,8 @@ void qSlicerUSnavModuleWidget::updateState()
   Q_D(qSlicerUSnavModuleWidget);
   vtkSlicerUSnavLogic* logic = d->logic();
   ostringstream oss;
+  if(logic->getMhaPath().empty())
+    return;
   oss << logic->getCurrentFrame() << "/" << logic->getNumberOfFrames();
   d->currentFrameLabel->setText(oss.str().c_str());
   d->transformStatusLabel->setText(logic->getCurrentTransformStatus().c_str());
@@ -130,10 +133,21 @@ void qSlicerUSnavModuleWidget::updateState()
 void qSlicerUSnavModuleWidget::onMrimageSelected(vtkMRMLNode* node)
 {
   Q_D(qSlicerUSnavModuleWidget);
+  Q_ASSERT(d->MRImageNodeComboBox);
   vtkSlicerUSnavLogic* logic = d->logic();
   vtkMRMLScalarVolumeNode* vnode = vtkMRMLScalarVolumeNode::SafeDownCast(node);
   if(vnode)
     logic->setMrimageNode(vnode);
+}
+
+void qSlicerUSnavModuleWidget::onStylusTransformChanged(vtkMRMLNode* node)
+{
+  Q_D(qSlicerUSnavModuleWidget);
+  Q_ASSERT(d->stylusTransformNodeComboBox);
+  d->consoleTextEdit->insertPlainText("on stylus transform\n");
+  vtkMRMLLinearTransformNode* tnode = vtkMRMLLinearTransformNode::SafeDownCast(node);
+  if(tnode)
+    d->logic()->setStylusTransform(tnode);
 }
 
 SLOTDEF_0(onNextImage, nextImage);

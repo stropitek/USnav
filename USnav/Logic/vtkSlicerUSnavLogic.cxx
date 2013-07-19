@@ -27,6 +27,7 @@ limitations under the License.
 
 // STD includes
 #include <cassert>
+#include <cfloat>
 
 // vnl include
 #include <vnl/vnl_double_3.h>
@@ -84,9 +85,10 @@ std::vector<float> vtkToStdMatrix(vtkMatrix4x4* matrix)
     for(int j=0; j<4; j++)
       result.push_back(matrix->GetElement(i,j));
   }
-
   return result;
 }
+
+
 
 void vnlToVtkMatrix(const vnl_matrix<double> vnlMatrix , vtkMatrix4x4* vtkMatrix)
 {
@@ -124,6 +126,17 @@ vnl_matrix<double> vtkToVnlMatrix(vtkMatrix4x4* vtkMatrix)
   return vnlMatrix;
 }
 
+// =======================================================
+// Geometry functions
+// =======================================================
+vnl_double_3 projectPoint(vnl_double_3 point, vnl_double_3 normalToPlane, double offset)
+{
+  normalToPlane.normalize();
+  double dist = dot_product(point, normalToPlane) + offset;
+  vnl_double_3 vec = dist*normalToPlane;
+  return point - vec;
+}
+
 // ======================================================= 
 // Similarity measure between two matrices
 // =======================================================
@@ -142,8 +155,31 @@ double orientationDistance(vtkMatrix4x4* m1, vtkMatrix4x4* m2)
   vnl_matrix<double> vm2 = vtkToVnlMatrix(m2);
   vnl_matrix<double> sub1 = vm1.extract(3,3);
   vnl_matrix<double> sub2 = vm1.extract(3,3);
+  sub1.normalize_columns(); sub2.normalize_columns();
   vnl_matrix<double> diff = sub1 - sub2;
   double dist = vnl_trace(diff.inplace_transpose() * diff);
+  return dist;
+}
+
+double pointToSliceDistance(vtkMatrix4x4* pointerTransform, vtkMatrix4x4* UStransform)
+{
+  vnl_matrix<double> pointerTransform_vnl = vtkToVnlMatrix(pointerTransform);
+  vnl_matrix<double> UStransform_vnl = vtkToVnlMatrix(UStransform);
+  vnl_matrix<double> wm = UStransform_vnl.extract(3,1,0,2);
+  vnl_matrix<double> tm = UStransform_vnl.extract(3,1,0,3);
+  vnl_matrix<double> pm = pointerTransform_vnl.extract(3,1,0,3);
+  
+  // Vector normal to the US image
+  vnl_double_3 w = convertVnlMatrixToVector(wm);
+  // Translation vector (a point of the plane)
+  vnl_double_3 t = convertVnlMatrixToVector(tm);
+  // Position of the pointer tip
+  vnl_double_3 p = convertVnlMatrixToVector(pm);
+  
+  w.normalize();
+  double d = -dot_product(t,w);
+  vnl_double_3 p_proj = projectPoint(p,w,d);
+  double dist = (p-p_proj).two_norm();
   return dist;
 }
 
@@ -331,6 +367,7 @@ vtkSlicerUSnavLogic::vtkSlicerUSnavLogic()
   this->imageNode = vtkMRMLScalarVolumeNode::New();
   this->imageNode->SetName("mha image");
   this->mrimageNode = NULL;
+  this->stylusTransform = NULL;
   this->imageWidth = 0;
   this->imageHeight = 0;
   this->numberOfFrames = 0;
@@ -359,6 +396,10 @@ vtkSlicerUSnavLogic::~vtkSlicerUSnavLogic()
     delete [] this->dataPointer;
 }
 
+// =======================================================
+// Core inherited functions reimplemented
+// =======================================================
+
 //----------------------------------------------------------------------------
 void vtkSlicerUSnavLogic::PrintSelf(ostream& os, vtkIndent indent)
 {
@@ -373,6 +414,53 @@ void vtkSlicerUSnavLogic::SetMRMLSceneInternal(vtkMRMLScene * newScene)
   events->InsertNextValue(vtkMRMLScene::NodeRemovedEvent);
   events->InsertNextValue(vtkMRMLScene::EndBatchProcessEvent);
   this->SetAndObserveMRMLSceneEventsInternal(newScene, events.GetPointer());
+}
+
+void vtkSlicerUSnavLogic::ProcessMRMLNodesEvents( vtkObject* caller, unsigned long event, void * callData )
+{
+  if ( caller == NULL )
+  {
+    return;
+  }
+  if(event == vtkMRMLTransformableNode::TransformModifiedEvent)
+  {
+    vtkMRMLLinearTransformNode* tnode = vtkMRMLLinearTransformNode::SafeDownCast( caller );
+    if(tnode) {
+      this->console->insertPlainText("Transform Node Modified\n");
+      this->findMatchingUS(tnode->GetMatrixTransformToParent());
+      return;
+    }
+  }
+  this->Superclass::ProcessMRMLNodesEvents( caller, event, callData );
+}
+
+void vtkSlicerUSnavLogic::setStylusTransform(vtkMRMLLinearTransformNode *tnode)
+{
+  if(tnode==this->stylusTransform)
+    return;
+  if(!tnode){
+    this->removeStylusTransform();
+    return;
+  }
+
+  int wasModifying = this->StartModify();
+  if(this->stylusTransform)
+    vtkSetAndObserveMRMLNodeMacro( this->stylusTransform, 0 );
+
+  vtkMRMLLinearTransformNode* newNode = NULL;
+  vtkSmartPointer< vtkIntArray > events = vtkSmartPointer< vtkIntArray >::New();
+  //events->InsertNextValue( vtkCommand::ModifiedEvent );
+  events->InsertNextValue(vtkMRMLTransformableNode::TransformModifiedEvent);
+  vtkSetAndObserveMRMLNodeEventsMacro( newNode, tnode, events );
+  this->stylusTransform = newNode;
+  this->EndModify( wasModifying );
+}
+
+void vtkSlicerUSnavLogic::removeStylusTransform()
+{
+  if(this->stylusTransform)
+    vtkSetAndObserveMRMLNodeMacro( this->stylusTransform, 0 );
+  this->stylusTransform = NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -556,4 +644,28 @@ void vtkSlicerUSnavLogic::checkFrame()
     this->currentFrame = 0;
   if(this->currentFrame < 0)
     this->currentFrame = this->getNumberOfFrames()-1;
+}
+
+bool pairlt(const pair<double,int>& p1, const pair<double,int>& p2) {
+  return p1.first < p2.first;
+}
+
+void vtkSlicerUSnavLogic::findMatchingUS(vtkMatrix4x4* stylusMatrix)
+{
+  vector<pair<double,int> > distToSlice;
+  vector<double> orientationDist;
+  for(int i=0; i<this->transforms.size(); i++)
+  {
+    if(!this->transformsValidity[i]){
+      distToSlice.push_back(pair<double,int>(DBL_MAX,i));
+      orientationDist.push_back(DBL_MAX);
+      continue;
+    }
+    vtkSmartPointer<vtkMatrix4x4> t = vtkSmartPointer<vtkMatrix4x4>::New();
+    getVtkMatrixFromVector(transforms[i], t);
+    distToSlice.push_back(pair<double,int>(pointToSliceDistance(stylusMatrix, t),i));
+    orientationDist.push_back(orientationDistance(stylusMatrix, t));
+  }
+  vector<pair<double,int> > sortedDistToSlice = distToSlice;
+  sort(sortedDistToSlice.begin(),sortedDistToSlice.end(),pairlt);
 }

@@ -49,6 +49,7 @@ public slots:
   void onPreviousInvalidFrame();
   void updateState();
   void onMrimageSelected(vtkMRMLNode*);
+  void onStylusTransformChanged(vtkMRMLNode*);
 
 protected:
   QScopedPointer<qSlicerUSnavModuleWidgetPrivate> d_ptr;
