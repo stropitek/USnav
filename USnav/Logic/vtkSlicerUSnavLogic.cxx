@@ -28,6 +28,7 @@ limitations under the License.
 // STD includes
 #include <cassert>
 #include <cfloat>
+#include <algorithm>
 
 // vnl include
 #include <vnl/vnl_double_3.h>
